@@ -1,5 +1,18 @@
 #include <Wire.h>
 #include "Adafruit_TCS34725.h"
+#include <Ethernet.h>
+#include <EthernetUdp.h>
+#include <SPI.h>    
+#include <OSCMessage.h>
+#include <OSCBundle.h>
+
+EthernetUDP Udp;
+
+//the Arduino's IP
+IPAddress ip(192, 168, 10, 10);
+//destination IP
+IPAddress outIp(192, 168, 10, 2);
+const unsigned int outPort = 9999;
 
 /* Example code for the Adafruit TCS34725 breakout library */
 
@@ -11,7 +24,12 @@
 
 Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
 
-void setup(void) {
+ byte mac[] = {  
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // you can find this written on the board of some Arduino Ethernets or shields
+void setup() {
+  Ethernet.begin(mac,ip);
+    Udp.begin(8888);
+    
   Serial.begin(9600);
   
   if (tcs.begin()) {
@@ -57,4 +75,15 @@ void loop(void) {
   if ( b>=270 && r>=400 && g>=500 ){                        
     Serial.println("WHITE");
 }
+}
+
+void sendOSC(String msg, unsigned int data) {
+
+  OSCMessage msgOUT(msg.c_str());
+  msgOUT.add(data);
+  Udp.beginPacket(outIp, outPort);
+  msgOUT.send(Udp);
+  Udp.endPacket();
+  msgOUT.empty();
+  delay(10);
 }
