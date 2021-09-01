@@ -34,19 +34,24 @@ byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // you can find this writt
 
 byte multiAddress = 0x70;
 
-Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_1X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_1X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_1X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_1X)};
+Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X)};
 
-byte gammatable[256];
+const int SAMPLES[5][3] = { // Values from colour training (averaged raw r, g and b; actuator movement)
+  {71, 22, 14},
+  {3200, 800, 700},
+  {3400, 5600, 4000},
+  {1000, 2100, 3300},
+  {8000, 10000, 9000},
+};          // rows correspond to none, red, green, blue, white...
+
+byte foundColour[] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+bool sensorTriggered = false; // Sample present yes or no
+byte samplesCount = sizeof(SAMPLES) / sizeof(SAMPLES[0]); // Determine number of samples in array
 byte arraySize = 4;   // number of colour sensors
-// data array for colours from each sensor
-uint16_t data[4][4] = {{0, 0, 0, 0},
-                       {0, 0, 0, 0},
-                       {0, 0, 0, 0},
-                       {0, 0, 0, 0}};
-
 
 //////////////////////////  OSC output messages:
 
@@ -69,15 +74,6 @@ void setup() {
   Udp.begin(8888);
   Serial.begin(115200);
   Wire.begin();
-  
-  // gammatable for more color accuracy when outputting on LED
-  for(int i =0; i < 256; i++){
-      float x = i;
-      x /= 255;
-      x = pow(x, 2.5);
-      x *= 255;
-      gammatable[i] = x;
-  }
 
   initColorSensors();     // start sensors
   // piezo trigger interrupt:
@@ -104,10 +100,10 @@ void loop(void) {
   // loop through all sensors and put rgb values in data array
   for(int i = 0; i < arraySize; i++){ // get all colors... not necessary right now 
       readColors(i);
+      delay(1000);
       // do color detection and update array with new values
-      colourDetect(i);
+ 
   }
-
 }
 
 
@@ -126,29 +122,15 @@ void initColorSensors(){                  // happens once in setup
 
 void readColors(byte sensorNum){
     chooseBus(sensorNum);
-    uint16_t r, g, b, c, lux;
+    uint16_t r, g, b, c;
     tcs[sensorNum].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel
-    lux = tcs[sensorNum].calculateLux(r, g, b);
-    processColors(r, g, b, c); // processing by dividng by clear value and then multiplying by 256
-    data[sensorNum][0] = r;
-    data[sensorNum][1] = g;
-    data[sensorNum][2] = b;
-    data[sensorNum][3] = lux;
-
-    //Serial.print(b, DEC); Serial.print(" "); Serial.print(r, DEC); Serial.print(" "); Serial.print(g, DEC); Serial.print(" "); Serial.println(lux, DEC);
-
+    
+    findColour(r, g, b, sensorNum);
+    //Serial.println(r);
+    //Serial.print(b, DEC); Serial.print(" "); Serial.print(r, DEC); Serial.print(" "); Serial.println(g, DEC);
+    //Serial.println(foundColour[sensorNum]);
 }
 
-void processColors(uint16_t r, uint16_t g, uint16_t b, uint32_t c){
-        // getting rid of IR component of light
-       r /= c;
-       g /= c;
-       b /= c; 
-       // adding it back in 
-       r *= 256;
-       g *= 256;
-       b *= 256;
-}
 
 void chooseBus(uint8_t bus){
     Wire.beginTransmission(0x70);
@@ -189,32 +171,26 @@ void doTheFade(unsigned long thisMillis) {
   }
 }
 
-// check to see if a particular colour has been detected from the data array
-void colourDetect(byte sensorNum) {
-  
-  if ( data[sensorNum][1]>=350 && data[sensorNum][0]<=450 && data[sensorNum][2]<=270){
-  winners[0] = 3;     // set first planet colour in winners array (3 is index for "green")                       
-  sendOSC("g", sensorNum);
-  }
-  
-  else if ( data[sensorNum][0]>=400 && data[sensorNum][1]<=450 && data[sensorNum][2]<=270){  
-  winners[0] = 2;    
-  sendOSC("r", sensorNum);
-  }
+// check to see if a particular colour has been detected from the SAMPLES array
+void findColour(int r, int g, int b, int count) {
 
-  else if ( data[sensorNum][2]>=260 && data[sensorNum][1]<=450 && data[sensorNum][0]<=450){
-  winners[0] = 1;                             
-  sendOSC("b", sensorNum);
-  }
-  
-  else if ( data[sensorNum][3]>=850){  
-  winners[0] = 4;                          
-  sendOSC("w", sensorNum);  
-}
-else {
-}
-}
+  int distance = 15000; // Raw distance from white to black (change depending on selected integration time and gain) 1590
 
+  for (int i = 0; i < samplesCount; i++) {
+    int temp = sqrt(pow(r - SAMPLES[i][0], 2) + pow(g - SAMPLES[i][1], 2) + pow(b - SAMPLES[i][2], 2)); // Calculate Euclidean distance between colours
+    //Serial.print(count); Serial.print(" "); Serial.print(r, DEC); Serial.print(" "); Serial.print(g, DEC); Serial.print(" "); Serial.println(b, DEC);
+    if (temp < distance) {
+      distance = temp;
+      foundColour[count] = i;
+    }
+  }
+  Serial.print(count); Serial.print(" ");Serial.println(foundColour[count]);
+  if (distance > 500) { // Threshold distance from SAMPLES calibration process
+    sensorTriggered = false;
+  } else {
+    sensorTriggered = true;
+  }
+}
 
 // interrupt service routine for piezo fader state
 void changeLED() {
