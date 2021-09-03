@@ -57,10 +57,7 @@ byte arraySize = 4;   // number of colour sensors
 
 String colour = "none";
 // array of colour messages to send over OSC (indexed by order - yellow = 0, red = 1 etc)
-String colours[4][5] = {{"none", "blue", "red", "green", "white"},
-                        {"none", "blue", "red", "green", "white"},
-                        {"none", "blue", "red", "green", "white"},
-                        {"none", "blue", "red", "green", "white"}};
+String colours[5] = {"none", "red", "green", "blue", "white"};;
                             
 // array of planet states (which colour are they) all set to "none" for game start
 int winners[] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -71,7 +68,7 @@ void setup() {
   digitalWrite(ledPin, HIGH);    // LED off
   
   Ethernet.begin(mac,ip);
-  Udp.begin(8888);
+  Udp.begin(8000);
   Serial.begin(115200);
   Wire.begin();
 
@@ -100,9 +97,7 @@ void loop(void) {
   // loop through all sensors and put rgb values in data array
   for(int i = 0; i < arraySize; i++){ // get all colors... not necessary right now 
       readColors(i);
-      delay(1000);
       // do color detection and update array with new values
- 
   }
 }
 
@@ -126,9 +121,6 @@ void readColors(byte sensorNum){
     tcs[sensorNum].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel
     
     findColour(r, g, b, sensorNum);
-    //Serial.println(r);
-    //Serial.print(b, DEC); Serial.print(" "); Serial.print(r, DEC); Serial.print(" "); Serial.println(g, DEC);
-    //Serial.println(foundColour[sensorNum]);
 }
 
 
@@ -148,7 +140,7 @@ void sendOSC(String msg, unsigned int data) {
   msgOUT.send(Udp);
   Udp.endPacket();
   msgOUT.empty();
-  delay(10);
+  delay(5);
 }
 
 void doTheFade(unsigned long thisMillis) {
@@ -172,23 +164,32 @@ void doTheFade(unsigned long thisMillis) {
 }
 
 // check to see if a particular colour has been detected from the SAMPLES array
+
+// is a running mean (or max from last 3 values...) of raw data useful here to stop a trigger of one colour immediately followed by another???
+
 void findColour(int r, int g, int b, int count) {
 
-  int distance = 15000; // Raw distance from white to black (change depending on selected integration time and gain) 1590
-
   for (int i = 0; i < samplesCount; i++) {
-    int temp = sqrt(pow(r - SAMPLES[i][0], 2) + pow(g - SAMPLES[i][1], 2) + pow(b - SAMPLES[i][2], 2)); // Calculate Euclidean distance between colours
-    //Serial.print(count); Serial.print(" "); Serial.print(r, DEC); Serial.print(" "); Serial.print(g, DEC); Serial.print(" "); Serial.println(b, DEC);
-    if (temp < distance) {
-      distance = temp;
-      foundColour[count] = i;
+    //normalise values for each color vs each other
+    float nr = r*1.0/(r+g+b);
+    float ng = g*1.0/(r+g+b); 
+    float nb = b*1.0/(r+g+b);
+
+  if (count == 3) {      
+    if (nr > 0.4) {
+      sendOSC("red", count);
+      Serial.println("red");
     }
-  }
-  Serial.print(count); Serial.print(" ");Serial.println(foundColour[count]);
-  if (distance > 500) { // Threshold distance from SAMPLES calibration process
-    sensorTriggered = false;
-  } else {
-    sensorTriggered = true;
+    if (ng > 0.38 && nr < 0.32) {
+      sendOSC("green", count);  
+      Serial.println("green");          
+    }
+    if (nb > 0.4 && nr < 0.3) {
+      sendOSC("blue", count); 
+      Serial.println("blue");           
+    }    
+    }
+  //Serial.print(count); Serial.print(" ");Serial.println(foundColour[count]);
   }
 }
 
