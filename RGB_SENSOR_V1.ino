@@ -185,7 +185,7 @@ void findColour(int r, int g, int b, int count) {
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
     
-    if (nr > 0.4 && ng< 0.32) {
+    if (nr > 0.4 && ng< 0.33) {
       sendOSC("red", count);
       Serial.println("red");
       for(int i=1; i<4; i++) {        // set neopixel colour
@@ -193,7 +193,7 @@ void findColour(int r, int g, int b, int count) {
         pixels.show();   // Send the updated pixel colors to the hardware.
       }
     }
-    if (ng > 0.38 && nr < 0.32) {
+    if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
       sendOSC("green", count);  
       Serial.println("green"); 
       for(int i=1; i<4; i++) {        // set neopixel colour
@@ -201,7 +201,7 @@ void findColour(int r, int g, int b, int count) {
         pixels.show();   // Send the updated pixel colors to the hardware.
       }               
     }
-    if (nb > 0.4 && nr < 0.3) {
+    if (nb > 0.34 && nr < 0.3) {
       sendOSC("blue", count); 
       Serial.println("blue"); 
       for(int i=1; i<4; i++) {        // set neopixel colour
@@ -209,11 +209,11 @@ void findColour(int r, int g, int b, int count) {
         pixels.show();   // Send the updated pixel colors to the hardware.
       }                      
     } 
-    if (nr > 0.38 && nb < 0.25 && ng > 0.35) {
+    if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
       sendOSC("yellow", count); 
       Serial.println("yellow"); 
       for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+count*3, pixels.Color(80, 80, 0));
+        pixels.setPixelColor(i+count*3, pixels.Color(81, 80, 0));
         pixels.show();   // Send the updated pixel colors to the hardware.
       }                   
     }       
