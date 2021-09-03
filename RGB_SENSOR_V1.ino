@@ -1,10 +1,17 @@
 #include <Wire.h>
 #include "Adafruit_TCS34725.h"
+#include <Adafruit_NeoPixel.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <SPI.h>    
 #include <OSCMessage.h>
 #include <OSCBundle.h>
+
+//////////////////// Neopixel stuff
+
+#define PIN        53       // data pin
+#define NUMPIXELS 15        // pixel number
+Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 //////////////////// Missed marble piezo sensor lighting:
 
@@ -75,7 +82,10 @@ void setup() {
   initColorSensors();     // start sensors
   // piezo trigger interrupt:
   attachInterrupt(digitalPinToInterrupt(inPin), changeLED, RISING);
-  
+
+  pixels.begin(); // INITIALIZE NeoPixel
+  pixels.clear(); // Set all pixel colors to 'off'
+  pixels.show();
 }
 
 void loop(void) {
@@ -174,22 +184,31 @@ void findColour(int r, int g, int b, int count) {
     float nr = r*1.0/(r+g+b);
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
-
-  if (count == 3) {      
+     
     if (nr > 0.4) {
       sendOSC("red", count);
       Serial.println("red");
+      for(int i=1; i<4; i++) {        // set neopixel colour
+        pixels.setPixelColor(i+count*3, pixels.Color(100, 0, 0));
+        pixels.show();   // Send the updated pixel colors to the hardware.
+      }
     }
     if (ng > 0.38 && nr < 0.32) {
       sendOSC("green", count);  
-      Serial.println("green");          
+      Serial.println("green"); 
+      for(int i=1; i<4; i++) {        // set neopixel colour
+        pixels.setPixelColor(i+count*3, pixels.Color(0, 100, 0));
+        pixels.show();   // Send the updated pixel colors to the hardware.
+      }               
     }
     if (nb > 0.4 && nr < 0.3) {
       sendOSC("blue", count); 
-      Serial.println("blue");           
+      Serial.println("blue"); 
+      for(int i=1; i<4; i++) {        // set neopixel colour
+        pixels.setPixelColor(i+count*3, pixels.Color(0, 0, 100));
+        pixels.show();   // Send the updated pixel colors to the hardware.
+      }                
     }    
-    }
-  //Serial.print(count); Serial.print(" ");Serial.println(foundColour[count]);
   }
 }
 
