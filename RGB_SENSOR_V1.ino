@@ -41,10 +41,10 @@ byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // you can find this writt
 
 byte multiAddress = 0x70;
 
-Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X)};
+Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X)};
 
 const int SAMPLES[5][3] = { // Values from colour training (averaged raw r, g and b; actuator movement)
   {71, 22, 14},
@@ -184,8 +184,8 @@ void findColour(int r, int g, int b, int count) {
     float nr = r*1.0/(r+g+b);
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
-     
-    if (nr > 0.4) {
+    
+    if (nr > 0.4 && ng< 0.32) {
       sendOSC("red", count);
       Serial.println("red");
       for(int i=1; i<4; i++) {        // set neopixel colour
@@ -207,8 +207,16 @@ void findColour(int r, int g, int b, int count) {
       for(int i=1; i<4; i++) {        // set neopixel colour
         pixels.setPixelColor(i+count*3, pixels.Color(0, 0, 100));
         pixels.show();   // Send the updated pixel colors to the hardware.
-      }                
-    }    
+      }                      
+    } 
+    if (nr > 0.38 && nb < 0.25 && ng > 0.35) {
+      sendOSC("yellow", count); 
+      Serial.println("yellow"); 
+      for(int i=1; i<4; i++) {        // set neopixel colour
+        pixels.setPixelColor(i+count*3, pixels.Color(80, 80, 0));
+        pixels.show();   // Send the updated pixel colors to the hardware.
+      }                   
+    }       
   }
 }
 
