@@ -66,12 +66,11 @@ byte arraySize = 8;   // number of colour sensors
 
 //////////////////////////  OSC output messages:
 
-String colour = "none";
-// array of colour messages to send over OSC (indexed by order - yellow = 0, red = 1 etc)
-String colours[5] = {"none", "red", "green", "blue", "white"};;
+// array of colour messages to send over OSC (indexed by order - yellow = 4, red = 1 etc)
+String colours[5] = {"none", "red", "green", "blue", "yellow"};;
                             
 // array of planet states (which colour are they) all set to "none" for game start
-int winners[] = {0, 0, 0, 0, 0, 0, 0, 0};
+int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 
 void setup() {
@@ -188,39 +187,45 @@ void findColour(int r, int g, int b, int count) {
     float nb = b*1.0/(r+g+b);
     
     if (nr > 0.4 && ng< 0.33) {
-      sendOSC("red", count);
-      Serial.println("red");
-      for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+(count-4)*3, pixels.Color(100, 0, 0));
-        pixels.show();   // Send the updated pixel colors to the hardware.
+      if (states[count] != 1) {       // check previous state of hole and update if its now red
+        sendOSC("red", count);
+        states[count] = 1;        
+        for(int i=1; i<4; i++) {        // set neopixel colour
+          pixels.setPixelColor(i+(count-4)*3, pixels.Color(100, 0, 0));
+          pixels.show();   // Send the updated pixel colors to the hardware.
+        }
       }
     }
     if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
-      sendOSC("green", count);  
-      Serial.println("green"); 
-      for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 100, 0));
-        pixels.show();   // Send the updated pixel colors to the hardware.
+      if (states[count] != 2) {       // check previous state of hole and update if its a new colour            
+        sendOSC("green", count);
+        states[count] = 2;    
+        for(int i=1; i<4; i++) {        // set neopixel colour
+          pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 100, 0));
+          pixels.show();   // Send the updated pixel colors to the hardware.
+        }
       }               
     }
     if (nb > 0.34 && nr < 0.3) {
-      sendOSC("blue", count); 
-      Serial.println("blue"); 
-      for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 0, 100));
-        pixels.show();   // Send the updated pixel colors to the hardware.
+      if (states[count] != 3) {       // check previous state of hole and update if its a new colour         
+        sendOSC("blue", count); 
+        states[count] = 3;      
+        for(int i=1; i<4; i++) {        // set neopixel colour
+          pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 0, 100));
+          pixels.show();   // Send the updated pixel colors to the hardware.
+        }
       }                      
     } 
     if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
-      //
-      sendOSC("yellow", count); 
-      Serial.println("yellow"); 
-      for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+(count-4)*3, pixels.Color(81, 80, 0));
-        pixels.show();   // Send the updated pixel colors to the hardware.
-      }                   
+      if (states[count] != 4) {       // check previous state of hole and update if its a new colour  
+        sendOSC("yellow", count);
+        states[count] = 4;  
+        for(int i=1; i<4; i++) {        // set neopixel colour
+          pixels.setPixelColor(i+(count-4)*3, pixels.Color(81, 80, 0));
+          pixels.show();   // Send the updated pixel colors to the hardware.
+        }  
+      }                 
     }       
-  //}
 }
 
 // interrupt service routine for piezo fader state
