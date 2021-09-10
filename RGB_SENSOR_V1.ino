@@ -41,10 +41,14 @@ byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // you can find this writt
 
 byte multiAddress = 0x70;
 
-Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X),
-                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X)};
+Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),                           
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),                           
+                           Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X)};
 
 const int SAMPLES[5][3] = { // Values from colour training (averaged raw r, g and b; actuator movement)
   {71, 22, 14},
@@ -58,7 +62,7 @@ byte foundColour[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 bool sensorTriggered = false; // Sample present yes or no
 byte samplesCount = sizeof(SAMPLES) / sizeof(SAMPLES[0]); // Determine number of samples in array
-byte arraySize = 4;   // number of colour sensors
+byte arraySize = 8;   // number of colour sensors
 
 //////////////////////////  OSC output messages:
 
@@ -92,7 +96,7 @@ void loop(void) {
 
   //start timer
   unsigned long currentMillis = millis();
-  
+
   // start black hole led fader if interrupt detected
   if (state == HIGH) {
     sendOSC("m", 1);
@@ -128,15 +132,15 @@ void initColorSensors(){                  // happens once in setup
 void readColors(byte sensorNum){
     chooseBus(sensorNum);
     uint16_t r, g, b, c;
-    tcs[sensorNum].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel
-    
+    tcs[sensorNum].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel 
     findColour(r, g, b, sensorNum);
+    
 }
 
 
 void chooseBus(uint8_t bus){
     Wire.beginTransmission(0x70);
-    Wire.write(1 << (bus+4)); // will be using 2-7 instead of 0-5 because of convience (placed better on the breadboard)
+    Wire.write(1 << bus); // will be using 2-7 instead of 0-5 because of convience (placed better on the breadboard)
     Wire.endTransmission();
 }
 
@@ -150,7 +154,7 @@ void sendOSC(String msg, unsigned int data) {
   msgOUT.send(Udp);
   Udp.endPacket();
   msgOUT.empty();
-  delay(5);
+
 }
 
 void doTheFade(unsigned long thisMillis) {
@@ -175,11 +179,9 @@ void doTheFade(unsigned long thisMillis) {
 
 // check to see if a particular colour has been detected from the SAMPLES array
 
-// is a running mean (or max from last 3 values...) of raw data useful here to stop a trigger of one colour immediately followed by another???
-
 void findColour(int r, int g, int b, int count) {
 
-  for (int i = 0; i < samplesCount; i++) {
+//  for (int i = 0; i < samplesCount; i++) {
     //normalise values for each color vs each other
     float nr = r*1.0/(r+g+b);
     float ng = g*1.0/(r+g+b); 
@@ -189,7 +191,7 @@ void findColour(int r, int g, int b, int count) {
       sendOSC("red", count);
       Serial.println("red");
       for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+count*3, pixels.Color(100, 0, 0));
+        pixels.setPixelColor(i+(count-4)*3, pixels.Color(100, 0, 0));
         pixels.show();   // Send the updated pixel colors to the hardware.
       }
     }
@@ -197,7 +199,7 @@ void findColour(int r, int g, int b, int count) {
       sendOSC("green", count);  
       Serial.println("green"); 
       for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+count*3, pixels.Color(0, 100, 0));
+        pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 100, 0));
         pixels.show();   // Send the updated pixel colors to the hardware.
       }               
     }
@@ -205,19 +207,20 @@ void findColour(int r, int g, int b, int count) {
       sendOSC("blue", count); 
       Serial.println("blue"); 
       for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+count*3, pixels.Color(0, 0, 100));
+        pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 0, 100));
         pixels.show();   // Send the updated pixel colors to the hardware.
       }                      
     } 
     if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
+      //
       sendOSC("yellow", count); 
       Serial.println("yellow"); 
       for(int i=1; i<4; i++) {        // set neopixel colour
-        pixels.setPixelColor(i+count*3, pixels.Color(81, 80, 0));
+        pixels.setPixelColor(i+(count-4)*3, pixels.Color(81, 80, 0));
         pixels.show();   // Send the updated pixel colors to the hardware.
       }                   
     }       
-  }
+  //}
 }
 
 // interrupt service routine for piezo fader state
