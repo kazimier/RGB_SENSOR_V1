@@ -6,6 +6,7 @@
 #include <SPI.h>    
 #include <OSCMessage.h>
 #include <OSCBundle.h>
+#include <avr/pgmspace.h>
 
 //////////////////// Neopixel stuff
 
@@ -18,14 +19,23 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 volatile byte state = LOW;    // fade state (goes high when drop detected)
 int inPin = 2;       // interrupt pin for piezo
 int ledPin = 13;    
-int fadeValue = 255;    // Set to max (255 is LED OFF - may need to be changed depending on driver)
+int brightness = 0;    // Set to max (255 is LED OFF - may need to be changed depending on driver)
+int fadeAmount = 1;
 
 #define ON 0            // define fader ON/OFF
 #define OFF 1
-byte fadeIncrement = 5;       // fade smoothness
 unsigned long previousFadeMillis;   // timers
-int fadeInterval = 10;      // fade speed
+int fadeInterval = 2;      // fade speed
 byte fader = OFF;       // State Variable for fader ON/OFF
+
+int count = 31;
+
+const uint8_t CIEL8[] = {          // lookup table
+0,    1,    2,    3,    4,    5,    7,    9,    12,
+15,    18,    22,    27,    32,    38,    44,    51,    58,
+67,    76,    86,    96,    108,    120,    134,    148,    163,
+180,    197,    216,    235,    255
+};
 
 //////////////////////  Network setup:
 
@@ -75,7 +85,7 @@ int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 void setup() {
   
-  digitalWrite(ledPin, HIGH);    // LED off
+  digitalWrite(ledPin, LOW);    // LED off
   
   Ethernet.begin(mac,ip);
   Udp.begin(8000);
@@ -99,8 +109,9 @@ void loop(void) {
   // start black hole led fader if interrupt detected
   if (state == HIGH) {
     sendOSC("m", 1);
+    count = 0;
+    brightness = 255;  // PWM 0 = LED Off
     fader = ON;
-    fadeValue = 0;  // PWM 0 = LED ON
     state = LOW;    // reset interrupt state
   }
  
@@ -160,17 +171,21 @@ void doTheFade(unsigned long thisMillis) {
   // is it time to update yet?
   // if not, nothing happens
   if (thisMillis - previousFadeMillis >= fadeInterval) {
-    // yup, it's time!
+    // yup, it's time!  
     if (fader == ON) {
-      fadeValue = fadeValue + fadeIncrement;  
-      if (fadeValue >= 255) {
-        // At max, limit and change direction
-        fadeValue = 255;     // LED OFF
+      brightness = 255-CIEL8[count];
+      count++;
+      Serial.println(count);
+      // stop after max number of steps (31)
+      if (count >= 31) {
+        brightness = 0;     // LED OFF
         fader = OFF;
       }
     }
     // Only need to update when it changes
-    analogWrite(ledPin, fadeValue);  
+    // set the brightness of pin 9:, 0-31, 5 bit steps of brightness
+    analogWrite(ledPin, brightness);
+    //analogWrite(ledPin, fadeValue);  
     // reset millis for the next iteration (fade timer only)
     previousFadeMillis = thisMillis;
   }
