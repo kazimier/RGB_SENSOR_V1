@@ -203,7 +203,7 @@ void findColour(int r, int g, int b, int count) {
     
     if (nr > 0.4 && ng< 0.33) {
       if (states[count] != 1) {       // check previous state of hole and update if its now red
-        String x = "red"+count;
+        String x = "red"+String(count, DEC);
         sendOSC(x,0);
         states[count] = 1;        
         for(int i=1; i<4; i++) {        // set neopixel colour
@@ -214,7 +214,7 @@ void findColour(int r, int g, int b, int count) {
     }
     if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
       if (states[count] != 2) {       // check previous state of hole and update if its a new colour            
-        String y = "green"+count;
+        String y = "green"+String(count, DEC);
         sendOSC(y,0);
         states[count] = 2;    
         for(int i=1; i<4; i++) {        // set neopixel colour
@@ -225,7 +225,7 @@ void findColour(int r, int g, int b, int count) {
     }
     if (nb > 0.34 && nr < 0.3) {
       if (states[count] != 3) {       // check previous state of hole and update if its a new colour         
-        String z = "blue"+count;        
+        String z = "blue"+String(count, DEC);        
         sendOSC(z, 0); 
         states[count] = 3;      
         for(int i=1; i<4; i++) {        // set neopixel colour
@@ -236,7 +236,7 @@ void findColour(int r, int g, int b, int count) {
     } 
     if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
       if (states[count] != 4) {       // check previous state of hole and update if its a new colour  
-        String a = "yellow"+count;        
+        String a = "yellow"+String(count, DEC);        
         sendOSC(a, 0);
         states[count] = 4;  
         for(int i=1; i<4; i++) {        // set neopixel colour
