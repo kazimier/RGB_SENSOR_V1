@@ -7,6 +7,7 @@
 #include <OSCMessage.h>
 #include <OSCBundle.h>
 #include <avr/pgmspace.h>
+#include <ezButton.h>
 
 //////////////////// Neopixel stuff
 
@@ -82,6 +83,9 @@ String colours[5] = {"none", "red", "green", "blue", "yellow"};;
 // array of planet states (which colour are they) all set to "none" for game start
 int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
+// setup buttons on pins:
+ezButton button1(5);
+ezButton button2(6);
 
 void setup() {
   
@@ -99,16 +103,34 @@ void setup() {
   pixels.begin(); // INITIALIZE NeoPixel
   pixels.clear(); // Set all pixel colors to 'off'
   pixels.show();
+  // set button debounce times
+  button1.setDebounceTime(50); // set debounce time to 50 milliseconds
+  button2.setDebounceTime(50); // set debounce time to 50 milliseconds
 }
 
 void loop(void) {
 
+  button1.loop(); // MUST call the loop() function first
+  button2.loop(); // MUST call the loop() function first
+  // add reset button to restart game
+  // add ambient button to enter ambient mode
+  int btn1State = button1.getState();
+  int btn2State = button2.getState();
+  if(button1.isPressed()) {
+    turnOff();      // reset all counters
+    turnOn();       // start game
+    sendOSC("/Reset/", 1);
+  }    
+  if(button2.isPressed()) {
+    turnOff();
+    sendOSC("/Ambient/", 1);
+  }
   //start timer
   unsigned long currentMillis = millis();
 
   // start black hole led fader if interrupt detected
   if (state == HIGH) {
-    sendOSC("m", 1);
+    sendOSC("/piezo", 1);
     count = 0;
     brightness = 255;  // PWM 0 = LED Off
     fader = ON;
