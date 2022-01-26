@@ -41,6 +41,7 @@ IPAddress ip(192, 168, 0, 101);
 //destination IP
 IPAddress outIp(192, 168, 0, 100);
 const unsigned int outPort = 9999;
+const unsigned int inPort = 8888;
 byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // you can find this written on the board of some Arduino Ethernets or shields
 
 ///////////////////////  Colour detection:   look at gain and integration time settings....
@@ -73,7 +74,7 @@ byte arraySize = 8;   // number of colour sensors
 //////////////////////////  OSC output messages:
 
 // array of colour messages to send over OSC (indexed by order - yellow = 4, red = 1 etc)
-String colours[4] = {"red", "green", "blue", "yellow"};;
+String colours[6] = {"red", "green", "blue", "yellow", "draw", "none"};
                             
 // array of planet states (which colour are they) all set to "none" for game start
 // ( red = 1, green = 2, blue = 3, yellow = 4 )
@@ -88,7 +89,7 @@ void setup() {
   digitalWrite(ledPin, LOW);    // LED off
   
   Ethernet.begin(mac,ip);
-  Udp.begin(8000);
+  Udp.begin(8888);
   Serial.begin(115200);
   Wire.begin();
 
@@ -102,6 +103,8 @@ void setup() {
 }
 
 void loop(void) {
+
+  receiveOSC();
 
   button1.loop(); // MUST call the loop() function first
   button2.loop(); // MUST call the loop() function first
@@ -210,7 +213,7 @@ void findColour(int r, int g, int b, int count) {
     float nr = r*1.0/(r+g+b);
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
-    
+
     if (nr > 0.4 && ng< 0.33) {
       if (states[count] != 1) {       // check previous state of hole and update if its now red
         String x = "red"+String(count, DEC);
@@ -232,13 +235,13 @@ void findColour(int r, int g, int b, int count) {
         states[count] = 3;      
       }                      
     } 
-    if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
-      if (states[count] != 4) {       // check previous state of hole and update if its a new colour  
-        String a = "yellow"+String(count, DEC);        
-        sendOSC(a, 0);
-        states[count] = 4;  
-      }                 
-    }       
+//    if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
+//      if (states[count] != 4) {       // check previous state of hole and update if its a new colour  
+//        String a = "yellow"+String(count, DEC);        
+//        sendOSC(a, 0);
+//        states[count] = 4;  
+//      }                 
+//    }       
 }
 
 // interrupt service routine for piezo fader state
@@ -251,18 +254,23 @@ void winner() {
   int winner [] = {0,0,0,0};
   for (int i=0; i<8; i++) {
     if (states[i] == 1) {
-      winner[i]+=1;
+      winner[0]+=1;
     }
     if (states[i] == 2) {
-      winner[i]+=1;
+      winner[1]+=1;
     }
     if (states[i] == 3) {
-      winner[i]+=1;
+      winner[2]+=1;
     }
     if (states[i] == 4) {
-      winner[i]+=1;
+      winner[3]+=1;
     }
   }
+  Serial.println(winner[0]);
+  Serial.println(winner[1]);
+  Serial.println(winner[2]);
+  Serial.println(winner[3]); 
+
   byte maxIndex = 0;
   int maxValue = winner[maxIndex];
 
@@ -274,6 +282,30 @@ void winner() {
     }
   }
   // send OSC and reset counters
-  sendOSC(colours[maxIndex], 1);
-  int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
+  for (int i=0;i<8;i++) {
+    states[i] = 0;
+  }
+  sendOSC(colours[maxIndex], maxIndex);
+  maxIndex = 0;
+  maxValue = 0;
+  for (int i=0;i<4;i++) {
+    winner[i] = 0;
+  }  
+}
+
+//reads and dispatches the incoming OSC
+void receiveOSC() {
+  OSCMessage msg;
+  int size = Udp.parsePacket();
+
+  if (size > 0) {
+    while (size--) {
+      msg.fill(Udp.read());
+    }
+    if (!msg.hasError()) {
+      msg.dispatch("/winner", winner);
+    } else {
+      Serial.print("error: ");
+    }
+  }
 }
