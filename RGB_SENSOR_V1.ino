@@ -9,11 +9,6 @@
 #include <avr/pgmspace.h>
 #include <ezButton.h>
 
-//////////////////// Neopixel stuff
-
-#define PIN        53       // data pin
-#define NUMPIXELS 15        // pixel number
-Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 //////////////////// Missed marble piezo sensor lighting:
 
@@ -78,9 +73,10 @@ byte arraySize = 8;   // number of colour sensors
 //////////////////////////  OSC output messages:
 
 // array of colour messages to send over OSC (indexed by order - yellow = 4, red = 1 etc)
-String colours[5] = {"none", "red", "green", "blue", "yellow"};;
+String colours[4] = {"red", "green", "blue", "yellow"};;
                             
 // array of planet states (which colour are they) all set to "none" for game start
+// ( red = 1, green = 2, blue = 3, yellow = 4 )
 int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 // setup buttons on pins:
@@ -97,12 +93,9 @@ void setup() {
   Wire.begin();
 
   initColorSensors();     // start sensors
+  
   // piezo trigger interrupt:
   attachInterrupt(digitalPinToInterrupt(inPin), changeLED, RISING);
-
-  pixels.begin(); // INITIALIZE NeoPixel
-  pixels.clear(); // Set all pixel colors to 'off'
-  pixels.show();
   // set button debounce times
   button1.setDebounceTime(50); // set debounce time to 50 milliseconds
   button2.setDebounceTime(50); // set debounce time to 50 milliseconds
@@ -117,12 +110,9 @@ void loop(void) {
   int btn1State = button1.getState();
   int btn2State = button2.getState();
   if(button1.isPressed()) {
-    turnOff();      // reset all counters
-    turnOn();       // start game
     sendOSC("/Reset/", 1);
   }    
   if(button2.isPressed()) {
-    turnOff();
     sendOSC("/Ambient/", 1);
   }
   //start timer
@@ -166,7 +156,6 @@ void readColors(byte sensorNum){
     uint16_t r, g, b, c;
     tcs[sensorNum].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel 
     findColour(r, g, b, sensorNum);
-    
 }
 
 
@@ -186,7 +175,6 @@ void sendOSC(String msg, unsigned int data) {
   msgOUT.send(Udp);
   Udp.endPacket();
   msgOUT.empty();
-
 }
 
 void doTheFade(unsigned long thisMillis) {
@@ -213,8 +201,8 @@ void doTheFade(unsigned long thisMillis) {
   }
 }
 
-// check to see if a particular colour has been detected from the SAMPLES array
 
+// check to see if a particular colour has been detected from the SAMPLES array
 void findColour(int r, int g, int b, int count) {
 
 //  for (int i = 0; i < samplesCount; i++) {
@@ -228,10 +216,6 @@ void findColour(int r, int g, int b, int count) {
         String x = "red"+String(count, DEC);
         sendOSC(x,0);
         states[count] = 1;        
-        for(int i=1; i<4; i++) {        // set neopixel colour
-          pixels.setPixelColor(i+(count-4)*3, pixels.Color(100, 0, 0));
-          pixels.show();   // Send the updated pixel colors to the hardware.
-        }
       }
     }
     if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
@@ -239,10 +223,6 @@ void findColour(int r, int g, int b, int count) {
         String y = "green"+String(count, DEC);
         sendOSC(y,0);
         states[count] = 2;    
-        for(int i=1; i<4; i++) {        // set neopixel colour
-          pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 100, 0));
-          pixels.show();   // Send the updated pixel colors to the hardware.
-        }
       }               
     }
     if (nb > 0.34 && nr < 0.3) {
@@ -250,10 +230,6 @@ void findColour(int r, int g, int b, int count) {
         String z = "blue"+String(count, DEC);        
         sendOSC(z, 0); 
         states[count] = 3;      
-        for(int i=1; i<4; i++) {        // set neopixel colour
-          pixels.setPixelColor(i+(count-4)*3, pixels.Color(0, 0, 100));
-          pixels.show();   // Send the updated pixel colors to the hardware.
-        }
       }                      
     } 
     if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
@@ -261,10 +237,6 @@ void findColour(int r, int g, int b, int count) {
         String a = "yellow"+String(count, DEC);        
         sendOSC(a, 0);
         states[count] = 4;  
-        for(int i=1; i<4; i++) {        // set neopixel colour
-          pixels.setPixelColor(i+(count-4)*3, pixels.Color(81, 80, 0));
-          pixels.show();   // Send the updated pixel colors to the hardware.
-        }  
       }                 
     }       
 }
@@ -272,4 +244,36 @@ void findColour(int r, int g, int b, int count) {
 // interrupt service routine for piezo fader state
 void changeLED() {
   state = HIGH;
+}
+
+// work out winner:
+void winner() {
+  int winner [] = {0,0,0,0};
+  for (int i=0; i<8; i++) {
+    if (states[i] == 1) {
+      winner[i]+=1;
+    }
+    if (states[i] == 2) {
+      winner[i]+=1;
+    }
+    if (states[i] == 3) {
+      winner[i]+=1;
+    }
+    if (states[i] == 4) {
+      winner[i]+=1;
+    }
+  }
+  byte maxIndex = 0;
+  int maxValue = winner[maxIndex];
+
+  for(byte i = 0; i < 4; i++)
+  {
+    if(winner[i] > maxValue) {
+        maxValue = winner[i];
+        maxIndex = i;
+    }
+  }
+  // send OSC and reset counters
+  sendOSC(colours[maxIndex], 1);
+  int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
 }
