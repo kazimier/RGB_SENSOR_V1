@@ -74,7 +74,7 @@ byte arraySize = 8;   // number of colour sensors
 //////////////////////////  OSC output messages:
 
 // array of colour messages to send over OSC (indexed by order - yellow = 4, red = 1 etc)
-String colours[6] = {"red", "green", "blue", "yellow", "draw", "none"};
+String colours[4] = {"red", "green", "blue", "yellow"};
                             
 // array of planet states (which colour are they) all set to "none" for game start
 // ( red = 1, green = 2, blue = 3, yellow = 4 )
@@ -251,8 +251,19 @@ void changeLED() {
 
 // work out winner:
 void winner() {
+  int s = 0;
+  for (int i=0; i<sizeof(states); i++) {
+    s += states[i];               // sum all state values
+  }
+  if (s == 0) {
+    // nobody scored...
+    sendOSC("/no_score", 0);
+    return;                     // exit function
+  }
+
+  // calculate total of each colour
   int winner [] = {0,0,0,0};
-  for (int i=0; i<8; i++) {
+  for (int i=0; i<sizeof(states); i++) {
     if (states[i] == 1) {
       winner[0]+=1;
     }
@@ -266,31 +277,33 @@ void winner() {
       winner[3]+=1;
     }
   }
-  Serial.println(winner[0]);
-  Serial.println(winner[1]);
-  Serial.println(winner[2]);
-  Serial.println(winner[3]); 
 
-  byte maxIndex = 0;
-  int maxValue = winner[maxIndex];
-
-  for(byte i = 0; i < 4; i++)
+  // work out which is highest (or if a draw)
+  int maxIndex = 0;
+  int maxValue = 0;
+  for (int i=0; i<sizeof(winner); i++)
   {
-    if(winner[i] > maxValue) {
+    if (winner[i] > maxValue) {
         maxValue = winner[i];
         maxIndex = i;
     }
   }
-  // send OSC and reset counters
-  for (int i=0;i<8;i++) {
-    states[i] = 0;
+  // check for a draw
+  int draw = 0;
+  for (int i=0; i<sizeof(winner); i++)
+  {
+    if (winner[i] == maxValue) {      // check for number of instances of the max value
+      draw += 1;
+    }
   }
-  sendOSC(colours[maxIndex], maxIndex);
-  maxIndex = 0;
-  maxValue = 0;
-  for (int i=0;i<4;i++) {
-    winner[i] = 0;
-  }  
+  if (draw > 1) {
+    sendOSC("/draw", 0);
+    return;                  // exit function
+  }
+  
+  // send winner
+  sendOSC(colours[maxIndex], maxIndex); 
+  return;
 }
 
 //reads and dispatches the incoming OSC
