@@ -154,6 +154,7 @@ void initColorSensors(){                  // happens once in setup
     }
 }
 
+// do an average of ?? many samples here before passing result to findColur function?
 void readColors(byte sensorNum){
     chooseBus(sensorNum);
     uint16_t r, g, b, c;
