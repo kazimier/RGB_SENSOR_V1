@@ -67,13 +67,16 @@ byte foundColour[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 bool sensorTriggered = false; // Sample present yes or no
 byte samplesCount = sizeof(SAMPLES) / sizeof(SAMPLES[0]); // Determine number of samples in array
-byte arraySize = 8;   // number of colour sensors
+int arraySize = 8;   // number of colour sensors
 
 //////////////////////////  OSC output messages:
 
 // array of colour messages to send over OSC (indexed by order - yellow = 4, red = 1 etc)
 String colours[4] = {"red", "green", "blue", "yellow"};
-                            
+// winnner messages
+String winner_colours[4] = {"/winner_red", "/winner_green", "/winner_blue", "/winner_yellow"};      
+
+                    
 // array of planet states (which colour are they) all set to "none" for game start
 // ( red = 1, green = 2, blue = 3, yellow = 4 )
 int states[] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -251,19 +254,23 @@ void changeLED() {
 // work out winner:
 void winner() {
   int s = 0;
-  for (int i=0; i<sizeof(states); i++) {
+  for (int i=0; i<arraySize; i++) {
+    //Serial.println(states[i]);
     s += states[i];               // sum values for all holes (red=1,green=2,blue=3,yellow=4)
   }
+  Serial.print("states total: ");
+  Serial.println(s);
   if (s == 0) {
     // if zero then nobody scored...
     sendOSC("/no_score", 0);
     Serial.println("No Winner");
+    reset_game();
     return;                     // exit function
   }
 
   // calculate total for each colour (r,g,b,y)
   int game_winner [] = {0,0,0,0};
-  for (int i=0; i<sizeof(states); i++) {
+  for (int i=0; i<arraySize; i++) {
     if (states[i] == 1) {
       game_winner[0]+=1;
     }
@@ -277,20 +284,25 @@ void winner() {
       game_winner[3]+=1;
     }
   }
+  Serial.println("winner array: ");
+  for (int i=0; i< 4; i++) {
+    Serial.println(game_winner[i]);
+  }
 
   // work out which is highest (or if a draw)
   int maxIndex = 0;
   int maxValue = 0;
-  for (int i=0; i<sizeof(game_winner); i++)
+  for (int i=0; i<4; i++)
   {
     if (game_winner[i] > maxValue) {
         maxValue = game_winner[i];
         maxIndex = i;
     }
   }
+
   // check for a draw
   int draw = 0;
-  for (int i=0; i<sizeof(game_winner); i++)
+  for (int i=0; i<4; i++)
   {
     // check how many colours had the same high score
     if (game_winner[i] == maxValue) {      // check for number of instances of the max value
@@ -301,13 +313,15 @@ void winner() {
     // if more than its a draw
     sendOSC("/draw", 0);
     Serial.println("Draw");
+    reset_game();
     return;                  // exit function
   }
   
   // send winner
-  sendOSC(colours[maxIndex], maxValue);
+  sendOSC(winner_colours[maxIndex], maxValue);
   Serial.print("Winner: ");
-  Serial.println(colours[maxIndex]);
+  Serial.println(maxIndex);
+  reset_game();
   return;
 }
 
@@ -326,4 +340,14 @@ void receiveOSC() {
       Serial.print("error: ");
     }
   }
+}
+
+// reset everything when game over
+void reset_game() {
+ for(int i = 0; i < arraySize; i++){
+      states[i]=0;
+  }
+  
+  fader = OFF;
+  piezo_state = LOW;
 }
