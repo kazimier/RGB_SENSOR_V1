@@ -9,10 +9,9 @@
 #include <avr/pgmspace.h>
 #include <ezButton.h>
 
-
 //////////////////// Missed marble piezo sensor lighting:
 
-volatile byte state = LOW;    // fade state (goes high when drop detected)
+volatile byte piezo_state = LOW;    // fade state (goes high when drop detected)
 int inPin = 2;       // interrupt pin for piezo
 int ledPin = 13;    
 int brightness = 0;    // Set to max (255 is LED OFF - may need to be changed depending on driver)
@@ -24,9 +23,8 @@ unsigned long previousFadeMillis;   // timers
 int fadeInterval = 2;      // fade speed
 byte fader = OFF;       // State Variable for fader ON/OFF
 
-int count = 31;
-
-const uint8_t CIEL8[] = {          // lookup table
+int fade_count = 31;
+const uint8_t CIEL8[] = {             // lookup table
 0,    1,    2,    3,    4,    5,    7,    9,    12,
 15,    18,    22,    27,    32,    38,    44,    51,    58,
 67,    76,    86,    96,    108,    120,    134,    148,    163,
@@ -122,12 +120,12 @@ void loop(void) {
   unsigned long currentMillis = millis();
 
   // start black hole led fader if interrupt detected
-  if (state == HIGH) {
+  if (piezo_state == HIGH) {
     sendOSC("/piezo", 1);
-    count = 0;
+    fade_count = 0;
     brightness = 255;  // PWM 0 = LED Off
     fader = ON;
-    state = LOW;    // reset interrupt state
+    piezo_state = LOW;    // reset interrupt state
   }
  
  // need to move this outside loop - or use interrupts for RGB detection
@@ -187,11 +185,10 @@ void doTheFade(unsigned long thisMillis) {
   if (thisMillis - previousFadeMillis >= fadeInterval) {
     // yup, it's time!  
     if (fader == ON) {
-      brightness = 255-CIEL8[count];
-      count++;
-      Serial.println(count);
+      brightness = 255-CIEL8[fade_count];
+      fade_count++;
       // stop after max number of steps (31)
-      if (count >= 31) {
+      if (fade_count >= 31) {
         brightness = 0;     // LED OFF
         fader = OFF;
       }
@@ -207,7 +204,7 @@ void doTheFade(unsigned long thisMillis) {
 
 
 // check to see if a particular colour has been detected from the SAMPLES array
-void findColour(int r, int g, int b, int count) {
+void findColour(int r, int g, int b, int num) {
 
 //  for (int i = 0; i < samplesCount; i++) {
     //normalise values for each color vs each other
@@ -216,94 +213,101 @@ void findColour(int r, int g, int b, int count) {
     float nb = b*1.0/(r+g+b);
 
     if (nr > 0.4 && ng< 0.33) {
-      if (states[count] != 1) {       // check previous state of hole and update if its now red
-        String x = "red"+String(count, DEC);
+      if (states[num] != 1) {       // check previous state of hole and update if its now red
+        String x = "red"+String(num, DEC);
         sendOSC(x,0);
-        states[count] = 1;        
+        // set state value for this hole to 1 (red=1,green=2,blue=3,yellow=4)
+        states[num] = 1;        
       }
     }
     if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
-      if (states[count] != 2) {       // check previous state of hole and update if its a new colour            
-        String y = "green"+String(count, DEC);
+      if (states[num] != 2) {       // check previous state of hole and update if its a new colour            
+        String y = "green"+String(num, DEC);
         sendOSC(y,0);
-        states[count] = 2;    
+        states[num] = 2;    
       }               
     }
     if (nb > 0.34 && nr < 0.3) {
-      if (states[count] != 3) {       // check previous state of hole and update if its a new colour         
-        String z = "blue"+String(count, DEC);        
+      if (states[num] != 3) {       // check previous state of hole and update if its a new colour         
+        String z = "blue"+String(num, DEC);        
         sendOSC(z, 0); 
-        states[count] = 3;      
+        states[num] = 3;      
       }                      
     } 
 //    if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
-//      if (states[count] != 4) {       // check previous state of hole and update if its a new colour  
-//        String a = "yellow"+String(count, DEC);        
+//      if (states[num] != 4) {       // check previous state of hole and update if its a new colour  
+//        String a = "yellow"+String(num, DEC);        
 //        sendOSC(a, 0);
-//        states[count] = 4;  
+//        states[num] = 4;  
 //      }                 
 //    }       
 }
 
 // interrupt service routine for piezo fader state
 void changeLED() {
-  state = HIGH;
+  piezo_state = HIGH;
 }
 
 // work out winner:
 void winner() {
   int s = 0;
   for (int i=0; i<sizeof(states); i++) {
-    s += states[i];               // sum all state values
+    s += states[i];               // sum values for all holes (red=1,green=2,blue=3,yellow=4)
   }
   if (s == 0) {
-    // nobody scored...
+    // if zero then nobody scored...
     sendOSC("/no_score", 0);
+    Serial.println("No Winner");
     return;                     // exit function
   }
 
-  // calculate total of each colour
-  int winner [] = {0,0,0,0};
+  // calculate total for each colour (r,g,b,y)
+  int game_winner [] = {0,0,0,0};
   for (int i=0; i<sizeof(states); i++) {
     if (states[i] == 1) {
-      winner[0]+=1;
+      game_winner[0]+=1;
     }
     if (states[i] == 2) {
-      winner[1]+=1;
+      game_winner[1]+=1;
     }
     if (states[i] == 3) {
-      winner[2]+=1;
+      game_winner[2]+=1;
     }
     if (states[i] == 4) {
-      winner[3]+=1;
+      game_winner[3]+=1;
     }
   }
 
   // work out which is highest (or if a draw)
   int maxIndex = 0;
   int maxValue = 0;
-  for (int i=0; i<sizeof(winner); i++)
+  for (int i=0; i<sizeof(game_winner); i++)
   {
-    if (winner[i] > maxValue) {
-        maxValue = winner[i];
+    if (game_winner[i] > maxValue) {
+        maxValue = game_winner[i];
         maxIndex = i;
     }
   }
   // check for a draw
   int draw = 0;
-  for (int i=0; i<sizeof(winner); i++)
+  for (int i=0; i<sizeof(game_winner); i++)
   {
-    if (winner[i] == maxValue) {      // check for number of instances of the max value
+    // check how many colours had the same high score
+    if (game_winner[i] == maxValue) {      // check for number of instances of the max value
       draw += 1;
     }
   }
   if (draw > 1) {
+    // if more than its a draw
     sendOSC("/draw", 0);
+    Serial.println("Draw");
     return;                  // exit function
   }
   
   // send winner
-  sendOSC(colours[maxIndex], maxIndex); 
+  sendOSC(colours[maxIndex], maxValue);
+  Serial.print("Winner: ");
+  Serial.println(colours[maxIndex]);
   return;
 }
 
