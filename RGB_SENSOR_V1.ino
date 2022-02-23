@@ -93,7 +93,7 @@ void setup() {
   button1.setDebounceTime(50); // set debounce time to 50 milliseconds
   button2.setDebounceTime(50); // set debounce time to 50 milliseconds
 
-  calibrate_sensors();
+  //calibrate_sensors();
   
 }
 
@@ -138,13 +138,26 @@ void loop(void) {
   }
 }
 
-
+// setup and calibrate sensors
 void initColorSensors(){                  // happens once in setup
     for(int i = 0; i < arraySize; i++){
         Serial.println(i);
         chooseBus(i);
         if (tcs[i].begin()){
-            Serial.print("Found sensor "); Serial.println(i+1);
+            Serial.print("Found sensor "); Serial.println(i);
+            uint16_t r, g, b, c;
+            // take 100 readings and average
+            for(int j=0; j< 10; j++){
+              tcs[i].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel 
+              r = r + r;
+              g = g + g;
+              b = b + b;
+            }
+            baseline_red[i] = r*1.0/(r+g+b);
+            baseline_green[i] = g*1.0/(r+g+b);
+            baseline_blue[i] = b*1.0/(r+g+b);
+            Serial.print(baseline_red[i]); Serial.print(" "); Serial.print(baseline_green[i]); Serial.print(" "); Serial.println(baseline_blue[i]);
+
         } else{
             Serial.println("No Sensor Found");
             while (true);
@@ -152,31 +165,8 @@ void initColorSensors(){                  // happens once in setup
     }
 }
 
-void calibrate_sensors() {
-  // get data from all sensors
-  for(int i = 0; i < arraySize; i++){ 
-      chooseBus(i);
-      uint16_t r, g, b, c;
-      float br, bg, bb;
-      // take 100 readings and average
-      for(int j=0; j< 10; j++){
-        tcs[i].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel 
-        br = br + r*1.0/(r+g+b);
-        bg = bg + g*1.0/(r+g+b); 
-        bb = bb + b*1.0/(r+g+b);
-      }
-      br = br / 10;
-      bg = bg / 10;
-      bb = bb / 10;
-      baseline_red[i] = br;
-      baseline_green[i] = bg;
-      baseline_blue[i] = bb;
-      Serial.print(br); Serial.print(" "); Serial.print(bg); Serial.print(" "); Serial.println(bb);
-  }
-}
 
-// do an average of ?? many samples here before passing result to findColur function?
-void readColors(byte sensorNum){
+void readColors(int sensorNum){
     chooseBus(sensorNum);
     uint16_t r, g, b, c;
     tcs[sensorNum].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel 
@@ -233,10 +223,10 @@ void findColour(int r, int g, int b, int num) {
     float nr = r*1.0/(r+g+b);
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
-
-    Serial.print(nr); Serial.print(" "); Serial.print(ng); Serial.print(" "); Serial.println(nb);
-    // check values against baseline and thresholds from testing
-    if (nr > baseline_red[num]/0.8 && ng > baseline_green[num]/1.16 && nb > baseline_blue[num]/1.2) {
+    if (num == 2) {
+    }
+//     check values against baseline and thresholds from testing
+    if (nr > baseline_red[num]*1.35 && ng < baseline_green[num]*0.85 && nb < baseline_blue[num]*0.81) {
       if (states[num] != 1) {       // check previous state of hole and update if its now red
         String x = "red"+String(num, DEC);
         sendOSC(x,1);
@@ -244,21 +234,21 @@ void findColour(int r, int g, int b, int num) {
         states[num] = 1;        
       }
     }
-    if (nr > baseline_red[num]/1.13 && ng > baseline_green[num]/0.93 && nb > baseline_blue[num]/0.93) {
+    if (nr < baseline_red[num]*0.95 && ng > baseline_green[num]*1.05 && nb < baseline_blue[num]*1.2) {
       if (states[num] != 2) {       // check previous state of hole and update if its a new colour            
         String y = "green"+String(num, DEC);
         sendOSC(y,1);
         states[num] = 2;    
       }               
     }
-    if (nr > baseline_red[num]/1.2 && nb > baseline_blue[num]/0.8) {
+    if (nr < baseline_red[num]*0.9 && nb > baseline_blue[num]*1.2 && ng <= baseline_green[num]) {
       if (states[num] != 3) {       // check previous state of hole and update if its a new colour         
         String z = "blue"+String(num, DEC);        
         sendOSC(z, 1); 
         states[num] = 3;      
       }                      
     } 
-    if (nr > baseline_red[num]/0.88 && nb > baseline_blue[num]/1.2) {
+    if (nr > baseline_red[num]*1.13 && nb < baseline_blue[num]*0.77 && ng > baseline_green[num]) {
       if (states[num] != 4) {       // check previous state of hole and update if its a new colour  
         String a = "yellow"+String(num, DEC);        
         sendOSC(a, 1);
