@@ -115,9 +115,11 @@ void loop(void) {
   int btn2State = button2.getState();
   if(button1.isPressed()) {
     sendOSC("/Reset/", 1);
+    reset_game();
   }    
   if(button2.isPressed()) {
     sendOSC("/Ambient/", 1);
+    reset_game();
   }
   //start timer
   unsigned long currentMillis = millis();
@@ -134,6 +136,7 @@ void loop(void) {
  // need to move this outside loop - or use interrupts for RGB detection
   doTheFade(currentMillis);
 
+  Serial.println("read sensors");
   // loop through all sensors and put rgb values in data array
   for(int i = 0; i < arraySize; i++){ // get all colors... not necessary right now 
       readColors(i);
@@ -215,7 +218,7 @@ void findColour(int r, int g, int b, int num) {
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
 
-    if (nr > 0.4 && ng< 0.33) {
+    if (nr > 0.4 && nb< 0.25 && ng < 0.3) {
       if (states[num] != 1) {       // check previous state of hole and update if its now red
         String x = "red"+String(num, DEC);
         sendOSC(x,1);
@@ -223,27 +226,27 @@ void findColour(int r, int g, int b, int num) {
         states[num] = 1;        
       }
     }
-    if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
+    if (ng > 0.38 && nr < 0.35) {
       if (states[num] != 2) {       // check previous state of hole and update if its a new colour            
         String y = "green"+String(num, DEC);
         sendOSC(y,1);
         states[num] = 2;    
       }               
     }
-    if (nb > 0.34 && nr < 0.3) {
+    if (nb > 0.34 && nr < 0.33) {
       if (states[num] != 3) {       // check previous state of hole and update if its a new colour         
         String z = "blue"+String(num, DEC);        
         sendOSC(z, 1); 
         states[num] = 3;      
       }                      
     } 
-//    if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
-//      if (states[num] != 4) {       // check previous state of hole and update if its a new colour  
-//        String a = "yellow"+String(num, DEC);        
-//        sendOSC(a, 1);
-//        states[num] = 4;  
-//      }                 
-//    }       
+    if (nr > 0.4 && nb < 0.25 && ng > 0.3) {
+      if (states[num] != 4) {       // check previous state of hole and update if its a new colour  
+        String a = "yellow"+String(num, DEC);        
+        sendOSC(a, 1);
+        states[num] = 4;  
+      }                 
+    }       
 }
 
 // interrupt service routine for piezo fader state
@@ -311,7 +314,7 @@ void winner() {
   }
   if (draw > 1) {
     // if more than its a draw
-    sendOSC("/draw", 0);
+    sendOSC("/draw", 1);
     Serial.println("Draw");
     reset_game();
     return;                  // exit function
