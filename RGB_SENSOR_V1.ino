@@ -215,7 +215,7 @@ void findColour(int r, int g, int b, int num) {
     if (nr > 0.4 && ng< 0.33) {
       if (states[num] != 1) {       // check previous state of hole and update if its now red
         String x = "red"+String(num, DEC);
-        sendOSC(x,0);
+        sendOSC(x,1);
         // set state value for this hole to 1 (red=1,green=2,blue=3,yellow=4)
         states[num] = 1;        
       }
@@ -223,21 +223,21 @@ void findColour(int r, int g, int b, int num) {
     if (ng > 0.38 && nr < 0.33 && nb < 0.29) {
       if (states[num] != 2) {       // check previous state of hole and update if its a new colour            
         String y = "green"+String(num, DEC);
-        sendOSC(y,0);
+        sendOSC(y,1);
         states[num] = 2;    
       }               
     }
     if (nb > 0.34 && nr < 0.3) {
       if (states[num] != 3) {       // check previous state of hole and update if its a new colour         
         String z = "blue"+String(num, DEC);        
-        sendOSC(z, 0); 
+        sendOSC(z, 1); 
         states[num] = 3;      
       }                      
     } 
 //    if (nr > 0.35 && nb < 0.27 && ng > 0.35) {
 //      if (states[num] != 4) {       // check previous state of hole and update if its a new colour  
 //        String a = "yellow"+String(num, DEC);        
-//        sendOSC(a, 0);
+//        sendOSC(a, 1);
 //        states[num] = 4;  
 //      }                 
 //    }       
