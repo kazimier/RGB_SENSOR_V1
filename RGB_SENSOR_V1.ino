@@ -42,9 +42,9 @@ const unsigned int outPort = 9999;
 const unsigned int inPort = 8888;
 byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; // you can find this written on the board of some Arduino Ethernets or shields
 
-///////////////////////  Colour detection:   look at gain and integration time settings....
-
+///////////////////////  Colour Sensors:
 byte multiAddress = 0x70;
+int arraySize = 8;   // number of colour sensors
 
 Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
                            Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),
@@ -55,19 +55,10 @@ Adafruit_TCS34725 tcs[] = {Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS
                            Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X),                           
                            Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X)};
 
-const int SAMPLES[5][3] = { // Values from colour training (averaged raw r, g and b; actuator movement)
-  {71, 22, 14},
-  {3200, 800, 700},
-  {3400, 5600, 4000},
-  {1000, 2100, 3300},
-  {8000, 10000, 9000},
-};          // rows correspond to none, red, green, blue, white...
-
-byte foundColour[] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-bool sensorTriggered = false; // Sample present yes or no
-byte samplesCount = sizeof(SAMPLES) / sizeof(SAMPLES[0]); // Determine number of samples in array
-int arraySize = 8;   // number of colour sensors
+// arrays to store baseline values for each sensor:
+float baseline_red[8] = {};
+float baseline_green[8] = {};
+float baseline_blue[8] = {};
 
 //////////////////////////  OSC output messages:
 
@@ -101,6 +92,9 @@ void setup() {
   // set button debounce times
   button1.setDebounceTime(50); // set debounce time to 50 milliseconds
   button2.setDebounceTime(50); // set debounce time to 50 milliseconds
+
+  calibrate_sensors();
+  
 }
 
 void loop(void) {
@@ -136,7 +130,7 @@ void loop(void) {
  // need to move this outside loop - or use interrupts for RGB detection
   doTheFade(currentMillis);
 
-  Serial.println("read sensors");
+  //Serial.println("read sensors");
   // loop through all sensors and put rgb values in data array
   for(int i = 0; i < arraySize; i++){ // get all colors... not necessary right now 
       readColors(i);
@@ -156,6 +150,29 @@ void initColorSensors(){                  // happens once in setup
             while (true);
         }
     }
+}
+
+void calibrate_sensors() {
+  // get data from all sensors
+  for(int i = 0; i < arraySize; i++){ 
+      chooseBus(i);
+      uint16_t r, g, b, c;
+      float br, bg, bb;
+      // take 100 readings and average
+      for(int j=0; j< 10; j++){
+        tcs[i].getRawData(&r, &g, &b, &c); // reading the rgb values 16bits at a time from the i2c channel 
+        br = br + r*1.0/(r+g+b);
+        bg = bg + g*1.0/(r+g+b); 
+        bb = bb + b*1.0/(r+g+b);
+      }
+      br = br / 10;
+      bg = bg / 10;
+      bb = bb / 10;
+      baseline_red[i] = br;
+      baseline_green[i] = bg;
+      baseline_blue[i] = bb;
+      Serial.print(br); Serial.print(" "); Serial.print(bg); Serial.print(" "); Serial.println(bb);
+  }
 }
 
 // do an average of ?? many samples here before passing result to findColur function?
@@ -209,16 +226,17 @@ void doTheFade(unsigned long thisMillis) {
 }
 
 
-// check to see if a particular colour has been detected from the SAMPLES array
+// check to see if a particular colour has been detected
 void findColour(int r, int g, int b, int num) {
 
-//  for (int i = 0; i < samplesCount; i++) {
     //normalise values for each color vs each other
     float nr = r*1.0/(r+g+b);
     float ng = g*1.0/(r+g+b); 
     float nb = b*1.0/(r+g+b);
 
-    if (nr > 0.4 && nb< 0.25 && ng < 0.3) {
+    Serial.print(nr); Serial.print(" "); Serial.print(ng); Serial.print(" "); Serial.println(nb);
+    // check values against baseline and thresholds from testing
+    if (nr > baseline_red[num]/0.8 && ng > baseline_green[num]/1.16 && nb > baseline_blue[num]/1.2) {
       if (states[num] != 1) {       // check previous state of hole and update if its now red
         String x = "red"+String(num, DEC);
         sendOSC(x,1);
@@ -226,21 +244,21 @@ void findColour(int r, int g, int b, int num) {
         states[num] = 1;        
       }
     }
-    if (ng > 0.38 && nr < 0.35) {
+    if (nr > baseline_red[num]/1.13 && ng > baseline_green[num]/0.93 && nb > baseline_blue[num]/0.93) {
       if (states[num] != 2) {       // check previous state of hole and update if its a new colour            
         String y = "green"+String(num, DEC);
         sendOSC(y,1);
         states[num] = 2;    
       }               
     }
-    if (nb > 0.34 && nr < 0.33) {
+    if (nr > baseline_red[num]/1.2 && nb > baseline_blue[num]/0.8) {
       if (states[num] != 3) {       // check previous state of hole and update if its a new colour         
         String z = "blue"+String(num, DEC);        
         sendOSC(z, 1); 
         states[num] = 3;      
       }                      
     } 
-    if (nr > 0.4 && nb < 0.25 && ng > 0.3) {
+    if (nr > baseline_red[num]/0.88 && nb > baseline_blue[num]/1.2) {
       if (states[num] != 4) {       // check previous state of hole and update if its a new colour  
         String a = "yellow"+String(num, DEC);        
         sendOSC(a, 1);
